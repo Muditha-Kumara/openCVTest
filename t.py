@@ -153,10 +153,10 @@ def compute_least_squares_intersection(lines_slopes_intercepts):
         return None
 
 
-def compute_and_log_results(main_lines, pairwise_count):
+def compute_and_log_results(line_models, pairwise_count, selected_line_indices):
     """Print assignment results only once"""
     print("\n=== ASSIGNMENT REQUIREMENTS RESULTS ===")
-    print(f"✓ Line Detection: {len(main_lines)} lines detected using HoughLinesP")
+    print(f"✓ Line Detection: {len(line_models)} lines detected using HoughLinesP")
     print(f"✓ Mathematical Representation: y = kx + b (Slope-Intercept Form)")
     print(
         f"✓ Analytical Intersection: {pairwise_count} pairwise intersections computed"
@@ -164,12 +164,13 @@ def compute_and_log_results(main_lines, pairwise_count):
 
     # --- BONUS FEATURE ---
     print(f"\n=== BONUS FEATURE: LEAST SQUARES (+1 pt) ===")
-    print(f"✓ Total Lines Detected: {len(main_lines)}")
-    print(f"✓ Selected Lines for LS: L1, L4, L5 (indices 0, 3, 4)")
+    print(f"✓ Total Lines Detected: {len(line_models)}")
+    print(f"✓ Selected Lines for LS: L2, L8, L7 (indices 1, 7, 6)")
 
-    selected_line_indices = [0, 3, 4]
     selected_lines = [
-        main_lines[i] for i in selected_line_indices if i < len(main_lines)
+        line_models[i]
+        for i in selected_line_indices
+        if i < len(line_models) and line_models[i] is not None
     ]
     print(
         f"✓ Available Selected Lines: {len(selected_lines)} (some indices may not exist)"
@@ -233,24 +234,33 @@ def visualize_lines_with_numbers(lines_with_coords, roi_shape):
     cv2.waitKey(1)
 
 
-def visualize_bonus_result(x_ls, y_ls, uncertainty, roi_shape):
+def visualize_bonus_result(x_ls, y_ls, uncertainty, roi_img):
     """Create a separate window showing the bonus least squares intersection result"""
-    # Create blank image with dark background
-    result_img = np.zeros((roi_shape[0], roi_shape[1], 3), dtype=np.uint8)
-    result_img[:, :] = (30, 30, 30)  # Dark background
+    # Use the actual ROI image as background
+    result_img = roi_img.copy()
 
-    # Draw the center point (yellow)
+    # Draw the center point (yellow circle)
     cv2.circle(result_img, (int(x_ls), int(y_ls)), 15, (0, 255, 255), -1)
 
-    # Draw uncertainty circle (inner circle for reference)
+    # Draw uncertainty circle (reference circle)
     cv2.circle(
         result_img, (int(x_ls), int(y_ls)), int(uncertainty) + 5, (0, 255, 255), 2
     )
 
+    # Draw a larger circle to show uncertainty range
+    cv2.circle(
+        result_img, (int(x_ls), int(y_ls)), int(uncertainty) + 15, (100, 200, 255), 1
+    )
+
+    # Add semi-transparent overlay for text readability
+    overlay = result_img.copy()
+    cv2.rectangle(overlay, (0, 0), (result_img.shape[1], 150), (0, 0, 0), -1)
+    result_img = cv2.addWeighted(result_img, 0.7, overlay, 0.3, 0)
+
     # Add header text
     cv2.putText(
         result_img,
-        "BONUS: Least Squares Intersection",
+        "BONUS: Least Squares Intersection (L2, L8, L7)",
         (10, 30),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.7,
@@ -258,21 +268,11 @@ def visualize_bonus_result(x_ls, y_ls, uncertainty, roi_shape):
         2,
     )
 
-    cv2.putText(
-        result_img,
-        "Lines Used: L1, L4, L5",
-        (10, 60),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (255, 255, 255),
-        1,
-    )
-
     # Add detailed information
     cv2.putText(
         result_img,
         f"Point: ({x_ls:.2f}, {y_ls:.2f})",
-        (10, 90),
+        (10, 60),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.6,
         (255, 255, 255),
@@ -282,6 +282,16 @@ def visualize_bonus_result(x_ls, y_ls, uncertainty, roi_shape):
     cv2.putText(
         result_img,
         f"Uncertainty: +/- {uncertainty:.2f} px",
+        (10, 90),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        1,
+    )
+
+    cv2.putText(
+        result_img,
+        f"Confidence Radius: {int(uncertainty) + 5} px",
         (10, 120),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.6,
@@ -326,6 +336,7 @@ def update_image(*args):
 
         main_lines = []
         line_coords = []  # Store coordinates for visualization
+        line_models = []  # Store (k, b) models aligned with line_coords
         if lines_p is not None:
             for line in lines_p:
                 # Ensure line is a 1D array of 4 elements
@@ -357,12 +368,10 @@ def update_image(*args):
                     if not is_duplicate:
                         main_lines.append((k_curr, b_curr))
 
+                line_models.append(res)
+
                 line_coords.append((lx1, ly1, lx2, ly2))
                 cv2.line(display_image, (lx1, ly1), (lx2, ly2), (0, 255, 0), 3)
-
-        # --- VISUALIZATION: Lines with Numbers and Colors ---
-        if line_coords:
-            visualize_lines_with_numbers(line_coords, roi.shape)
 
         # --- 4. ANALYTICAL INTERSECTION [cite: 32-35] ---
         pairwise_count = 0
@@ -380,19 +389,25 @@ def update_image(*args):
                 if 0 <= x < display_image.shape[1] and 0 <= y < display_image.shape[0]:
                     cv2.circle(display_image, (int(x), int(y)), 10, (0, 0, 255), -1)
 
+        # --- VISUALIZATION: Lines with Numbers and Colors ---
+        if line_coords:
+            visualize_lines_with_numbers(line_coords, roi.shape)
+
         # --- BONUS: LEAST SQUARES INTERSECTION (Multiple Lines) ---
-        # Use only lines 1, 4, 5 (indices 0, 3, 4) for least squares calculation
-        selected_line_indices = [0, 3, 4]  # L1, L4, L5
+        # Use only lines 2, 8, 7 (indices 1, 7, 6) for least squares calculation
+        selected_line_indices = [1, 7, 6]  # L2, L8, L7
         selected_lines = [
-            main_lines[i] for i in selected_line_indices if i < len(main_lines)
+            line_models[i]
+            for i in selected_line_indices
+            if i < len(line_models) and line_models[i] is not None
         ]
 
         if len(selected_lines) >= 2:
             result = compute_least_squares_intersection(selected_lines)
             if result:
                 x_ls, y_ls, uncertainty = result
-                # Show bonus result in separate window
-                visualize_bonus_result(x_ls, y_ls, uncertainty, roi.shape)
+                # Show bonus result in separate window with ROI image
+                visualize_bonus_result(x_ls, y_ls, uncertainty, roi)
 
         cv2.imshow("Edges View", edges)
         cv2.imshow("Filtered Result", display_image)
@@ -400,7 +415,7 @@ def update_image(*args):
 
         # Store results globally for one-time logging
         global last_logged_state
-        last_logged_state = (main_lines, pairwise_count)
+        last_logged_state = (line_models, pairwise_count)
 
     except Exception as e:
         print(f"Error: {e}")
@@ -457,7 +472,7 @@ update_image()
 
 # Log the final results once
 if last_logged_state:
-    compute_and_log_results(last_logged_state[0], last_logged_state[1])
+    compute_and_log_results(last_logged_state[0], last_logged_state[1], [1, 7, 6])
 
 root.mainloop()
 cv2.destroyAllWindows()

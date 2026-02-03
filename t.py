@@ -4,138 +4,116 @@ import tkinter as tk
 from tkinter import Scale, HORIZONTAL
 import itertools
 
-# --- CONFIGURATION & INITIALIZATION ---
-# Based on Screenshot 18-42-02
-roi_pts = [(5, 349), (1014, 581)]
+# --- 1. SETUP & ROI ---
 image_path = "20251206_115810.jpg"
-x_multiplier = 0.25
-y_multiplier = 0.25
+original_img = cv2.imread(image_path)
 
-# Load and resize the initial image [cite: 14]
-image = cv2.imread(image_path)
-if image is None:
+if original_img is None:
     print(f"Error: Could not load image at {image_path}")
     exit()
 
-resized_image = cv2.resize(
-    image, (int(image.shape[1] * x_multiplier), int(image.shape[0] * y_multiplier))
-)
+# Scale image for GUI stability
+scale = 0.25
+resized_image = cv2.resize(original_img, None, fx=scale, fy=scale)
 
-# Define the ROI (Region of Interest) based on teacher's snippet [cite: 18-42-02]
+# ROI coordinates based on field markings
+roi_pts = [(5, 349), (1014, 581)]
 x1, y1 = roi_pts[0]
 x2, y2 = roi_pts[1]
 roi = resized_image[min(y1, y2) : max(y1, y2), min(x1, x2) : max(x1, x2)]
 
-# --- MATHEMATICAL FUNCTIONS ---
-
 
 def line_to_slope_intercept(a, b, c):
-    """
-    Converts general form ax + by + c = 0 to slope-intercept y = kx + b0.
-    Follows teacher's logic in Screenshot 18-41-52.
-    """
+    """Mathematical representation y = kx + b0 [cite: 29]"""
     if b == 0:
-        return None  # Vertical line handling
+        return None
     k = -a / b
     intercept = -c / b
     return k, intercept
 
 
-def line_intersections(lines):
-    """
-    Computes analytical intersection points for all pairs of lines.
-    Follows teacher's logic in Screenshot 18-41-52[cite: 32].
-    """
-    intersections = []
-    # Use itertools to compare every line against every other line once [cite: 18-41-52]
-    for (i, (k1, b1)), (j, (k2, b2)) in itertools.combinations(enumerate(lines), 2):
-        if k1 is not None and k2 is not None:
-            # Check for nearly parallel lines for numerical stability
-            if abs(k1 - k2) < 1e-8:
-                continue
-
-            # Analytical intersection formula: x = (b2 - b1) / (k1 - k2) [cite: 33]
-            x = (b2 - b1) / (k1 - k2)
-            y = k1 * x + b1
-            intersections.append((x, y, i + 1, j + 1))
-
-    return intersections
-
-
-# --- PROCESSING PIPELINE ---
-
-
 def update_image(*args):
-    """
-    Main processing loop triggered by the Tkinter slider.
-    Follows flow in Screenshot 18-42-11[cite: 42].
-    """
-    # 1. Preprocessing [cite: 23, 24]
-    blur_val = blur_size_scale.get()
-    # Kernel size must be odd
-    if blur_val % 2 == 0:
-        blur_val += 1
+    try:
+        blur_val = blur_size_scale.get()
+        if blur_val % 2 == 0:
+            blur_val += 1
 
-    gray_image = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    blurred_image = cv2.GaussianBlur(gray_image, (blur_val, blur_val), 0)
-    edges = cv2.Canny(blurred_image, 100, 200)
+        # --- 2. PREPROCESSING [cite: 23-24] ---
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (blur_val, blur_val), 0)
+        edges = cv2.Canny(blurred, 50, 150)
 
-    display_image = roi.copy()
+        display_image = roi.copy()
 
-    # 2. Line Detection [cite: 25, 27]
-    # Using Probabilistic Hough Transform as seen in the teacher's GUI title
-    lines_p = cv2.HoughLinesP(
-        edges, 1, np.pi / 180, threshold=50, minLineLength=30, maxLineGap=10
-    )
+        # --- 3. LINE DETECTION (Probabilistic Hough) [cite: 27] ---
+        # Increased minLineLength and maxLineGap to connect fragmented markings
+        lines_p = cv2.HoughLinesP(
+            edges, 1, np.pi / 180, threshold=100, minLineLength=120, maxLineGap=40
+        )
 
-    slopes_intercepts = []
-    if lines_p is not None:
-        for line in lines_p:
-            lx1, ly1, lx2, ly2 = line[0]
-            # Draw detected lines on image [cite: 37]
-            cv2.line(display_image, (lx1, ly1), (lx2, ly2), (0, 255, 0), 2)
+        main_lines = []
+        if lines_p is not None:
+            for line in lines_p:
+                lx1, ly1, lx2, ly2 = line[0]
+                # General form coefficients: ax + by + c = 0
+                a = ly2 - ly1
+                b = lx1 - lx2
+                c = lx2 * ly1 - lx1 * ly2
 
-            # Mathematical representation: a = y2-y1, b = x1-x2, c = x2y1 - x1y2 [cite: 18-42-02]
-            a = ly2 - ly1
-            b = lx1 - lx2
-            c = lx2 * ly1 - lx1 * ly2
+                res = line_to_slope_intercept(a, b, c)
 
-            res = line_to_slope_intercept(a, b, c)
-            if res:
-                slopes_intercepts.append(res)
+                if res:
+                    k_curr, b_curr = res
 
-    # 3. Intersection Computation [cite: 31]
-    intersections = line_intersections(slopes_intercepts)
+                    # --- FINE-TUNING: REMOVE DOUBLE EDGES ---
+                    # Check if this line is too close to a line we already found
+                    is_duplicate = False
+                    for k_old, b_old in main_lines:
+                        # If slope is similar AND vertical intercept is close, it's the same marking strip
+                        if abs(k_curr - k_old) < 0.15 and abs(b_curr - b_old) < 30:
+                            is_duplicate = True
+                            break
 
-    print("\nIntersections:")
-    for x, y, i, j in intersections:
-        # F-string formatting from Screenshot 18-42-51 [cite: 18-42-51]
-        print(f"Lines {i} ja {j} intersect at point ({x:.2f}, {y:.2f})")
+                    if not is_duplicate:
+                        main_lines.append((k_curr, b_curr))
+                        # Draw the clean, unique line [cite: 37]
+                        cv2.line(display_image, (lx1, ly1), (lx2, ly2), (0, 255, 0), 3)
 
-        # Visualize intersection point if it is within the ROI [cite: 38]
-        if 0 <= x < display_image.shape[1] and 0 <= y < display_image.shape[0]:
-            cv2.circle(display_image, (int(x), int(y)), 5, (0, 0, 255), -1)
+        # --- 4. ANALYTICAL INTERSECTION [cite: 32-35] ---
+        print("\n--- Final Unique Intersections ---")
+        for (i, (k1, b1)), (j, (k2, b2)) in itertools.combinations(
+            enumerate(main_lines), 2
+        ):
+            # Numerical stability check for nearly parallel lines [cite: 35]
+            if abs(k1 - k2) > 0.05:
+                # Solve: k1*x + b1 = k2*x + b2
+                x = (b2 - b1) / (k1 - k2)
+                y = k1 * x + b1
 
-    # Show results [cite: 18-42-51]
-    cv2.imshow("edges", edges)
-    cv2.imshow("display_image", display_image)
-    cv2.waitKey(1)
+                print(f"Intersection of Marking {i+1} & {j+1}: ({x:.2f}, {y:.2f})")
+
+                # Visualize intersection point [cite: 38]
+                if 0 <= x < display_image.shape[1] and 0 <= y < display_image.shape[0]:
+                    cv2.circle(display_image, (int(x), int(y)), 10, (0, 0, 255), -1)
+
+        cv2.imshow("Edges View", edges)
+        cv2.imshow("Filtered Result", display_image)
+        cv2.waitKey(1)
+
+    except Exception as e:
+        print(f"Error: {e}")
 
 
-# --- TKINTER GUI SETUP ---
-# Based on Screenshot 18-42-15 [cite: 18-42-15]
+# --- 5. GUI CONTROLS ---
 root = tk.Tk()
-root.title("HoughLinesP Controls (Tkinter sliders + cv2.imshow)")
+root.title("Line Intersection Fine-Tuning")
 
 blur_size_scale = Scale(
-    root, from_=1, to=100, orient=HORIZONTAL, label="blur size", command=update_image
+    root, from_=1, to=100, orient=HORIZONTAL, label="Blur Size", command=update_image
 )
 blur_size_scale.set(7)
 blur_size_scale.pack()
 
-# Initial call to populate windows
 update_image()
-
-# Start the loop
 root.mainloop()
 cv2.destroyAllWindows()

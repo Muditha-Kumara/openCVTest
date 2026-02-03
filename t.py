@@ -95,7 +95,7 @@ def postprocess_lines(lines, dist_threshold=100, angle_threshold=10):
 
 
 def line_to_slope_intercept(a, b, c):
-    """Mathematical representation y = kx + b0 [cite: 29]"""
+    """Convert general form (ax + by + c = 0) to slope-intercept form (y = kx + b)"""
     if b == 0:
         return None
     k = -a / b
@@ -309,15 +309,14 @@ def update_image(*args):
         if blur_val % 2 == 0:
             blur_val += 1
 
-        # --- 2. PREPROCESSING [cite: 23-24] ---
+        # --- 2. PREPROCESSING ---
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (blur_val, blur_val), 0)
         edges = cv2.Canny(blurred, 50, 150)
 
         display_image = roi.copy()
 
-        # --- 3. LINE DETECTION (Probabilistic Hough) [cite: 27] ---
-        # Increased minLineLength and maxLineGap to connect fragmented markings
+        # --- 3. LINE DETECTION (Probabilistic Hough) ---
         # Get dynamic HoughLinesP parameters from sliders
         threshold_val = hough_threshold_scale.get()
         min_line_length_val = min_line_length_scale.get()
@@ -373,21 +372,22 @@ def update_image(*args):
                 line_coords.append((lx1, ly1, lx2, ly2))
                 cv2.line(display_image, (lx1, ly1), (lx2, ly2), (0, 255, 0), 3)
 
-        # --- 4. ANALYTICAL INTERSECTION [cite: 32-35] ---
+        # --- 4. ANALYTICAL INTERSECTION ---
+        # Compute pairwise line intersections using slope-intercept form
         pairwise_count = 0
         for (i, (k1, b1)), (j, (k2, b2)) in itertools.combinations(
             enumerate(main_lines), 2
         ):
-            # Numerical stability check for nearly parallel lines [cite: 35]
+            # Skip nearly parallel lines for numerical stability
             if abs(k1 - k2) > 0.05:
                 pairwise_count += 1
-                # Solve: k1*x + b1 = k2*x + b2
+                # Solve: k1*x + b1 = k2*x + b2 => x = (b2 - b1) / (k1 - k2)
                 x = (b2 - b1) / (k1 - k2)
                 y = k1 * x + b1
-
-                # Visualize intersection point [cite: 38]
                 if 0 <= x < display_image.shape[1] and 0 <= y < display_image.shape[0]:
-                    cv2.circle(display_image, (int(x), int(y)), 10, (0, 0, 255), -1)
+                    cv2.circle(
+                        display_image, (int(x), int(y)), 10, (0, 0, 255), -1
+                    )  # Draw intersection point
 
         # --- VISUALIZATION: Lines with Numbers and Colors ---
         if line_coords:

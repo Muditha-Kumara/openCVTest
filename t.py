@@ -164,14 +164,133 @@ def compute_and_log_results(main_lines, pairwise_count):
 
     # --- BONUS FEATURE ---
     print(f"\n=== BONUS FEATURE: LEAST SQUARES (+1 pt) ===")
-    if len(main_lines) >= 2:
-        result = compute_least_squares_intersection(main_lines)
+    print(f"✓ Total Lines Detected: {len(main_lines)}")
+    print(f"✓ Selected Lines for LS: L1, L4, L5 (indices 0, 3, 4)")
+
+    selected_line_indices = [0, 3, 4]
+    selected_lines = [
+        main_lines[i] for i in selected_line_indices if i < len(main_lines)
+    ]
+    print(
+        f"✓ Available Selected Lines: {len(selected_lines)} (some indices may not exist)"
+    )
+
+    if len(selected_lines) >= 2:
+        result = compute_least_squares_intersection(selected_lines)
         if result:
             x_ls, y_ls, uncertainty = result
             print(f"✓ Multi-line Intersection: ({x_ls:.2f}, {y_ls:.2f})")
             print(f"✓ Uncertainty Estimation: ±{uncertainty:.4f} pixels")
-            print(f"✓ Lines Used: {len(main_lines)}")
+            print(f"✓ Lines Used: {len(selected_lines)}")
     print("=" * 50 + "\n")
+
+
+def visualize_lines_with_numbers(lines_with_coords, roi_shape):
+    """Create a visualization showing all lines with numbers and different colors"""
+    # Create blank image
+    vis_img = np.zeros((roi_shape[0], roi_shape[1], 3), dtype=np.uint8)
+
+    # Color palette for lines
+    colors = [
+        (255, 0, 0),  # Blue
+        (0, 255, 0),  # Green
+        (0, 0, 255),  # Red
+        (255, 255, 0),  # Cyan
+        (255, 0, 255),  # Magenta
+        (0, 255, 255),  # Yellow
+        (128, 0, 255),  # Purple
+        (255, 128, 0),  # Orange
+        (0, 128, 255),  # Sky Blue
+        (255, 0, 128),  # Pink
+    ]
+
+    for line_idx, (lx1, ly1, lx2, ly2) in enumerate(lines_with_coords):
+        # Get color
+        color = colors[line_idx % len(colors)]
+
+        # Draw line
+        cv2.line(vis_img, (lx1, ly1), (lx2, ly2), color, 3)
+
+        # Calculate midpoint for label
+        mid_x = (lx1 + lx2) // 2
+        mid_y = (ly1 + ly2) // 2
+
+        # Draw circle at midpoint
+        cv2.circle(vis_img, (mid_x, mid_y), 8, color, -1)
+
+        # Add line number label
+        cv2.putText(
+            vis_img,
+            f"L{line_idx + 1}",
+            (mid_x - 15, mid_y + 5),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            2,
+        )
+
+    cv2.imshow("Detected Lines (Numbered)", vis_img)
+    cv2.waitKey(1)
+
+
+def visualize_bonus_result(x_ls, y_ls, uncertainty, roi_shape):
+    """Create a separate window showing the bonus least squares intersection result"""
+    # Create blank image with dark background
+    result_img = np.zeros((roi_shape[0], roi_shape[1], 3), dtype=np.uint8)
+    result_img[:, :] = (30, 30, 30)  # Dark background
+
+    # Draw the center point (yellow)
+    cv2.circle(result_img, (int(x_ls), int(y_ls)), 15, (0, 255, 255), -1)
+
+    # Draw uncertainty circle (inner circle for reference)
+    cv2.circle(
+        result_img, (int(x_ls), int(y_ls)), int(uncertainty) + 5, (0, 255, 255), 2
+    )
+
+    # Add header text
+    cv2.putText(
+        result_img,
+        "BONUS: Least Squares Intersection",
+        (10, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (0, 255, 255),
+        2,
+    )
+
+    cv2.putText(
+        result_img,
+        "Lines Used: L1, L4, L5",
+        (10, 60),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        1,
+    )
+
+    # Add detailed information
+    cv2.putText(
+        result_img,
+        f"Point: ({x_ls:.2f}, {y_ls:.2f})",
+        (10, 90),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        1,
+    )
+
+    cv2.putText(
+        result_img,
+        f"Uncertainty: +/- {uncertainty:.2f} px",
+        (10, 120),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        1,
+    )
+
+    cv2.imshow("Bonus: LS Intersection Result", result_img)
+    cv2.waitKey(1)
 
 
 def update_image(*args):
@@ -206,6 +325,7 @@ def update_image(*args):
         lines_p = postprocess_lines(lines_p)
 
         main_lines = []
+        line_coords = []  # Store coordinates for visualization
         if lines_p is not None:
             for line in lines_p:
                 # Ensure line is a 1D array of 4 elements
@@ -236,8 +356,13 @@ def update_image(*args):
 
                     if not is_duplicate:
                         main_lines.append((k_curr, b_curr))
-                        # Draw the clean, unique line [cite: 37]
+
+                line_coords.append((lx1, ly1, lx2, ly2))
                 cv2.line(display_image, (lx1, ly1), (lx2, ly2), (0, 255, 0), 3)
+
+        # --- VISUALIZATION: Lines with Numbers and Colors ---
+        if line_coords:
+            visualize_lines_with_numbers(line_coords, roi.shape)
 
         # --- 4. ANALYTICAL INTERSECTION [cite: 32-35] ---
         pairwise_count = 0
@@ -256,37 +381,18 @@ def update_image(*args):
                     cv2.circle(display_image, (int(x), int(y)), 10, (0, 0, 255), -1)
 
         # --- BONUS: LEAST SQUARES INTERSECTION (Multiple Lines) ---
-        if len(main_lines) >= 2:
-            result = compute_least_squares_intersection(main_lines)
+        # Use only lines 1, 4, 5 (indices 0, 3, 4) for least squares calculation
+        selected_line_indices = [0, 3, 4]  # L1, L4, L5
+        selected_lines = [
+            main_lines[i] for i in selected_line_indices if i < len(main_lines)
+        ]
+
+        if len(selected_lines) >= 2:
+            result = compute_least_squares_intersection(selected_lines)
             if result:
                 x_ls, y_ls, uncertainty = result
-
-                # Visualize least squares intersection point (yellow circle with larger radius)
-                if (
-                    0 <= x_ls < display_image.shape[1]
-                    and 0 <= y_ls < display_image.shape[0]
-                ):
-                    cv2.circle(
-                        display_image, (int(x_ls), int(y_ls)), 15, (0, 255, 255), -1
-                    )
-                    # Draw uncertainty circle (dashed representation)
-                    cv2.circle(
-                        display_image,
-                        (int(x_ls), int(y_ls)),
-                        int(uncertainty) + 5,
-                        (0, 255, 255),
-                        2,
-                    )
-                    # Add text label
-                    cv2.putText(
-                        display_image,
-                        f"LS: ({x_ls:.1f},{y_ls:.1f}) +/-{uncertainty:.2f}",
-                        (int(x_ls) + 20, int(y_ls) - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        (0, 255, 255),
-                        1,
-                    )
+                # Show bonus result in separate window
+                visualize_bonus_result(x_ls, y_ls, uncertainty, roi.shape)
 
         cv2.imshow("Edges View", edges)
         cv2.imshow("Filtered Result", display_image)

@@ -4,6 +4,11 @@ import tkinter as tk
 from tkinter import Scale, HORIZONTAL
 import itertools
 
+# Add scikit-image import
+from skimage.transform import probabilistic_hough_line
+from skimage.feature import canny
+from skimage.color import rgb2gray
+
 # --- 1. SETUP & ROI ---
 image_path = "20251206_115810.jpg"
 original_img = cv2.imread(image_path)
@@ -21,6 +26,68 @@ roi_pts = [(5, 349), (1014, 581)]
 x1, y1 = roi_pts[0]
 x2, y2 = roi_pts[1]
 roi = resized_image[min(y1, y2) : max(y1, y2), min(x1, x2) : max(x1, x2)]
+
+
+def postprocess_lines(lines, dist_threshold=100, angle_threshold=10):
+
+    print(f"Initial detected lines: {0 if lines is None else len(lines)}")
+    if lines is None:
+        return []
+
+    # Convert lines to a more workable list format
+    lines = [l[0] for l in lines]
+
+    # Show input lines
+    vis_height = roi.shape[0]
+    vis_width = roi.shape[1]
+    input_img = np.zeros((vis_height, vis_width, 3), dtype=np.uint8)
+    for lx1, ly1, lx2, ly2 in lines:
+        cv2.line(input_img, (lx1, ly1), (lx2, ly2), (0, 255, 255), 2)
+    cv2.imshow("Input Lines", input_img)
+    cv2.waitKey(1)
+
+    final_lines = []
+    used = np.zeros(len(lines), dtype=bool)
+
+    for i in range(len(lines)):
+        if used[i]:
+            continue
+
+        group = [lines[i]]
+        used[i] = True
+
+        x1, y1, x2, y2 = lines[i]
+        angle_i = np.rad2deg(np.arctan2(y2 - y1, x2 - x1)) % 180
+
+        for j in range(i + 1, len(lines)):
+            if used[j]:
+                continue
+
+            x3, y3, x4, y4 = lines[j]
+            angle_j = np.rad2deg(np.arctan2(y4 - y3, x4 - x3)) % 180
+
+            angle_diff = abs(angle_i - angle_j)
+            if angle_diff < angle_threshold or angle_diff > (180 - angle_threshold):
+                mid_i = np.array([(x1 + x2) / 2, (y1 + y2) / 2])
+                mid_j = np.array([(x3 + x4) / 2, (y3 + y4) / 2])
+                dist = np.linalg.norm(mid_i - mid_j)
+                if dist < dist_threshold:
+                    group.append(lines[j])
+                    used[j] = True
+
+        group = np.array(group)
+        final_lines.append(np.mean(group, axis=0).astype(int))
+
+    print(f"Final unique lines: {len(final_lines)}")
+
+    # Show output lines
+    output_img = np.zeros((vis_height, vis_width, 3), dtype=np.uint8)
+    for lx1, ly1, lx2, ly2 in final_lines:
+        cv2.line(output_img, (lx1, ly1), (lx2, ly2), (255, 0, 0), 2)
+    cv2.imshow("Output Lines", output_img)
+    cv2.waitKey(1)
+
+    return final_lines
 
 
 def line_to_slope_intercept(a, b, c):
@@ -51,10 +118,18 @@ def update_image(*args):
             edges, 1, np.pi / 180, threshold=100, minLineLength=120, maxLineGap=40
         )
 
+        lines_p = postprocess_lines(lines_p)
+
         main_lines = []
         if lines_p is not None:
             for line in lines_p:
-                lx1, ly1, lx2, ly2 = line[0]
+                # Ensure line is a 1D array of 4 elements
+                if isinstance(line, np.ndarray) and line.shape == (1, 4):
+                    lx1, ly1, lx2, ly2 = line[0]
+                elif isinstance(line, (np.ndarray, list)) and len(line) == 4:
+                    lx1, ly1, lx2, ly2 = line
+                else:
+                    continue
                 # General form coefficients: ax + by + c = 0
                 a = ly2 - ly1
                 b = lx1 - lx2
@@ -96,9 +171,9 @@ def update_image(*args):
                 if 0 <= x < display_image.shape[1] and 0 <= y < display_image.shape[0]:
                     cv2.circle(display_image, (int(x), int(y)), 10, (0, 0, 255), -1)
 
-        cv2.imshow("Edges View", edges)
-        cv2.imshow("Filtered Result", display_image)
-        cv2.waitKey(1)
+        # cv2.imshow("Edges View", edges)
+        # cv2.imshow("Filtered Result", display_image)
+        # cv2.waitKey(1)
 
     except Exception as e:
         print(f"Error: {e}")

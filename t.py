@@ -41,8 +41,10 @@ def postprocess_lines(lines, dist_threshold=100, angle_threshold=10):
     vis_height = roi.shape[0]
     vis_width = roi.shape[1]
     input_img = np.zeros((vis_height, vis_width, 3), dtype=np.uint8)
+    i = 0
     for lx1, ly1, lx2, ly2 in lines:
-        cv2.line(input_img, (lx1, ly1), (lx2, ly2), (0, 255, 255), 2)
+        cv2.line(input_img, (lx1, ly1), (lx2, ly2), (i, 255 - i, 255), 2)
+        i += 40
     cv2.imshow("Input Lines", input_img)
     cv2.waitKey(1)
 
@@ -114,8 +116,18 @@ def update_image(*args):
 
         # --- 3. LINE DETECTION (Probabilistic Hough) [cite: 27] ---
         # Increased minLineLength and maxLineGap to connect fragmented markings
+        # Get dynamic HoughLinesP parameters from sliders
+        threshold_val = hough_threshold_scale.get()
+        min_line_length_val = min_line_length_scale.get()
+        max_line_gap_val = max_line_gap_scale.get()
+
         lines_p = cv2.HoughLinesP(
-            edges, 1, np.pi / 180, threshold=100, minLineLength=120, maxLineGap=40
+            edges,
+            1,
+            np.pi / 180,
+            threshold=threshold_val,
+            minLineLength=min_line_length_val,
+            maxLineGap=max_line_gap_val,
         )
 
         lines_p = postprocess_lines(lines_p)
@@ -152,7 +164,7 @@ def update_image(*args):
                     if not is_duplicate:
                         main_lines.append((k_curr, b_curr))
                         # Draw the clean, unique line [cite: 37]
-                        cv2.line(display_image, (lx1, ly1), (lx2, ly2), (0, 255, 0), 3)
+                cv2.line(display_image, (lx1, ly1), (lx2, ly2), (0, 255, 0), 3)
 
         # --- 4. ANALYTICAL INTERSECTION [cite: 32-35] ---
         print("\n--- Final Unique Intersections ---")
@@ -171,9 +183,9 @@ def update_image(*args):
                 if 0 <= x < display_image.shape[1] and 0 <= y < display_image.shape[0]:
                     cv2.circle(display_image, (int(x), int(y)), 10, (0, 0, 255), -1)
 
-        # cv2.imshow("Edges View", edges)
-        # cv2.imshow("Filtered Result", display_image)
-        # cv2.waitKey(1)
+        cv2.imshow("Edges View", edges)
+        cv2.imshow("Filtered Result", display_image)
+        cv2.waitKey(1)
 
     except Exception as e:
         print(f"Error: {e}")
@@ -183,11 +195,44 @@ def update_image(*args):
 root = tk.Tk()
 root.title("Line Intersection Fine-Tuning")
 
+
+# Blur size slider
 blur_size_scale = Scale(
     root, from_=1, to=100, orient=HORIZONTAL, label="Blur Size", command=update_image
 )
 blur_size_scale.set(7)
 blur_size_scale.pack()
+
+# HoughLinesP threshold slider
+hough_threshold_scale = Scale(
+    root,
+    from_=1,
+    to=200,
+    orient=HORIZONTAL,
+    label="Hough Threshold",
+    command=update_image,
+)
+hough_threshold_scale.set(100)
+hough_threshold_scale.pack()
+
+# HoughLinesP minLineLength slider
+min_line_length_scale = Scale(
+    root,
+    from_=10,
+    to=500,
+    orient=HORIZONTAL,
+    label="Min Line Length",
+    command=update_image,
+)
+min_line_length_scale.set(120)
+min_line_length_scale.pack()
+
+# HoughLinesP maxLineGap slider
+max_line_gap_scale = Scale(
+    root, from_=1, to=100, orient=HORIZONTAL, label="Max Line Gap", command=update_image
+)
+max_line_gap_scale.set(40)
+max_line_gap_scale.pack()
 
 update_image()
 root.mainloop()

@@ -87,11 +87,11 @@ def update_histograms(gray_img, blurred_img, contrasted_img, binary_img, kernel_
     label_height = 24
     total_width = len(hist_data) * (canvas_width + gap) - gap
     total_height = canvas_height + label_height + 10
-    strip = np.zeros((total_height, total_width, 3), dtype=np.uint8)
+    strip = np.full((total_height, total_width, 3), 245, dtype=np.uint8)
 
     for idx, (title, hist, color) in enumerate(hist_data):
         x0 = idx * (canvas_width + gap)
-        hist_img = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+        hist_img = np.full((canvas_height, canvas_width, 3), 245, dtype=np.uint8)
 
         max_val = np.max(hist) if np.max(hist) > 0 else 1
         hist_norm = (hist / max_val) * (canvas_height - 1)
@@ -101,11 +101,11 @@ def update_histograms(gray_img, blurred_img, contrasted_img, binary_img, kernel_
             y2 = int(canvas_height - hist_norm[x])
             cv2.line(hist_img, (x - 1, y1), (x, y2), color, 1)
 
-        cv2.putText(hist_img, title, (6, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(hist_img, title, (6, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (20, 20, 20), 1)
         strip[10:10 + canvas_height, x0:x0 + canvas_width] = hist_img
 
     header = f"Histograms | Kernel={kernel_size}x{kernel_size}, Sigma={sigma:.1f}, CLAHE={clahe_limit:.1f}"
-    cv2.putText(strip, header, (10, total_height - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+    cv2.putText(strip, header, (10, total_height - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (60, 60, 60), 1)
 
     cv2.imshow("Histograms", strip)
 

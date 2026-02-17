@@ -1,17 +1,3 @@
-# ============================================
-# LINE DETECTION & INTERSECTION ANALYSIS
-# ============================================
-# Assignment: Detect lines using HoughLinesP, compute intersections analytically
-# in slope-intercept form, and find best-fit intersection using least squares.
-#
-# GRADING CRITERIA:
-# 1. Line Detection (2 pts): HoughLinesP with postprocessing
-# 2. Mathematical Representation (1 pt): Slope-intercept form (y = kx + b)
-# 3. Analytical Intersection (2 pts): Pairwise line intersection computation
-# 4. Code Quality & Explanation (1 pt): Clear comments and visualization
-# BONUS: Least Squares Multi-line Intersection (+1 pt)
-# ============================================
-
 import cv2
 import numpy as np
 import tkinter as tk

@@ -90,21 +90,28 @@ while True:
         )
 
     # Find intersection points of horizontal lines with leftmost edge (search left to right)
+    # Find intersection points of horizontal lines with second vertical edge line (x=185)
     p3, p4 = None, None
     # y=100
     if 0 <= 100 < h:
         row = edges[100]
+        crossings = 0
         for x in range(w):
             if row[x] > 0:
-                p3 = (x, 100)
-                break
+                crossings += 1
+                if crossings == 2:
+                    p3 = (x, 100)
+                    break
     # y=360
     if 0 <= 360 < h:
         row = edges[360]
+        crossings = 0
         for x in range(w):
             if row[x] > 0:
-                p4 = (x, 360)
-                break
+                crossings += 1
+                if crossings == 2:
+                    p4 = (x, 360)
+                    break
 
     # Draw points if found
     if p3:
@@ -129,6 +136,8 @@ while True:
             (255, 0, 0),
             2,
         )
+
+    # Draw points if found
 
     # Overlay edges on real image (green edges)
     overlay = img.copy()

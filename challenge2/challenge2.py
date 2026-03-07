@@ -243,6 +243,7 @@ def main():
         # Print values in terminal
         print(f"Min: {min_val}, Max: {max_val}", end="\r")
         cv2.imshow("Edge", display)
+        cv2.imshow("Original", img)
         if cv2.waitKey(100) & 0xFF == 27:
             break
     cv2.destroyAllWindows()

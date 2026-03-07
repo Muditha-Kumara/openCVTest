@@ -187,6 +187,31 @@ def main():
                     (0, 255, 255),
                     2,
                 )
+        # Draw all x and y intersection points with small circles and labels
+        for idx, pt in enumerate([x1, x2, x3, x4], 1):
+            if pt and 0 <= pt[0] < w and 0 <= pt[1] < h:
+                cv2.circle(display, pt, 6, (255, 0, 0), -1)
+                cv2.putText(
+                    display,
+                    f"x{idx}",
+                    (pt[0] + 10, pt[1]),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 0, 0),
+                    1,
+                )
+        for idx, pt in enumerate([v1, v2, v3, v4], 1):
+            if pt and 0 <= pt[0] < w and 0 <= pt[1] < h:
+                cv2.circle(display, pt, 6, (0, 0, 255), -1)
+                cv2.putText(
+                    display,
+                    f"v{idx}",
+                    (pt[0] + 10, pt[1]),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 0, 255),
+                    1,
+                )
         # Perspective rectification overlay
         p_points = [p1, p2, p3, p4]
         valid_p = [pt for pt in p_points if pt is not None]

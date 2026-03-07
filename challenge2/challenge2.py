@@ -531,15 +531,37 @@ while True:
 
     # Draw points if found
 
-    # Overlay edges on real image (green edges)
-    overlay = img.copy()
-    overlay[edges != 0] = (0, 255, 0)
+    # Overlay window: perspective rectification using p points
+    p_points = [p1, p2, p3, p4]
+    valid_p = [pt for pt in p_points if pt is not None]
+    if len(valid_p) == 4:
+        # Order points: top-left, top-right, bottom-right, bottom-left
+        pts = np.array(valid_p, dtype=np.float32)
+        # Sort by y, then x
+        pts_sorted = sorted(pts, key=lambda p: (p[1], p[0]))
+        top = sorted(pts_sorted[:2], key=lambda p: p[0])
+        bottom = sorted(pts_sorted[2:], key=lambda p: p[0])
+        rect = np.array([top[0], top[1], bottom[1], bottom[0]], dtype=np.float32)
+        # Compute square side length for rectified view
+        widthA = np.linalg.norm(rect[2] - rect[3])
+        widthB = np.linalg.norm(rect[1] - rect[0])
+        heightA = np.linalg.norm(rect[1] - rect[2])
+        heightB = np.linalg.norm(rect[0] - rect[3])
+        maxSide = int(max(widthA, widthB, heightA, heightB))
+        dst = np.array(
+            [[0, 0], [maxSide - 1, 0], [maxSide - 1, maxSide - 1], [0, maxSide - 1]],
+            dtype=np.float32,
+        )
+        M = cv2.getPerspectiveTransform(rect, dst)
+        overlay = cv2.warpPerspective(img, M, (maxSide, maxSide))
+        cv2.imshow("Overlay", overlay)
+    else:
+        cv2.imshow("Overlay", np.zeros_like(img))
 
     # Print values in terminal
     print(f"Min: {min_val}, Max: {max_val}", end="\r")
 
     cv2.imshow("Edge", display)
-    cv2.imshow("Overlay", overlay)
     if cv2.waitKey(100) & 0xFF == 27:
         break
 

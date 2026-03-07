@@ -185,110 +185,50 @@ def update_histograms(gray_img, blurred_img, contrasted_img, binary_img, kernel_
     cv2.imshow("Histograms", canvas)
 
 
-def save_csv():
-    """Save current pixel values to CSV"""
-    global img, gray, row_index
-    
-    if gray is None:
-        print("No image loaded!")
-        return
-    
-    # Get current trackbar values
-    kernel_size = cv2.getTrackbarPos('Kernel Size', 'Controls')
-    if kernel_size % 2 == 0:
-        kernel_size += 1
-    if kernel_size < 1:
-        kernel_size = 1
-    
-    sigma = cv2.getTrackbarPos('Sigma x10', 'Controls') / 10.0
-    clahe_limit = cv2.getTrackbarPos('CLAHE x10', 'Controls') / 10.0
-    if clahe_limit < 0.1:
-        clahe_limit = 0.1
-    
-    # Recompute with current parameters
-    blurred = cv2.GaussianBlur(gray, (kernel_size, kernel_size), sigma)
-    clahe = cv2.createCLAHE(clipLimit=clahe_limit, tileGridSize=(8, 8))
-    contrasted = clahe.apply(blurred)
-    
-    # Convert to binary image
-    _, binary = cv2.threshold(contrasted, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    
-    # Extract pixel values
-    rgb_values = img[row_index, :]
-    gray_values = gray[row_index, :]
-    blurred_values = blurred[row_index, :]
-    contrasted_values = contrasted[row_index, :]
-    binary_values = binary[row_index, :]
-    rgb_sums = np.sum(rgb_values, axis=1)
-    
-    # Write to CSV
-    output_csv = "pixel_values.csv"
-    with open(output_csv, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile, delimiter=';')
-        writer.writerow(['x', 'RGB_sum', 'Gray', 'Blurred', 'Contrasted', 'Binary'])
-        
-        for x in range(len(gray_values)):
-            writer.writerow([
-                x,
-                int(rgb_sums[x]),
-                int(gray_values[x]),
-                int(blurred_values[x]),
-                int(contrasted_values[x]),
-                int(binary_values[x])
-            ])
-    
-    print(f"\n✓ Saved to {output_csv}")
-    print(f"  Parameters: Kernel={kernel_size}x{kernel_size}, Sigma={sigma:.1f}, CLAHE={clahe_limit:.1f}")
-    print(f"  Total pixels: {len(gray_values)}")
-
-
 def process_grid(image_path):
     """Process grid image with interactive OpenCV trackbars"""
     global img, gray, row_index
-    
+
     # Load image
     img = cv2.imread(image_path)
     if img is None:
         print(f"Error: Could not load image at {image_path}")
         return
-    
+
     print(f"Image shape: {img.shape}")
     cv2.imshow("Original", img)
-    
+
     # Convert to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     cv2.imshow("Grayscale", gray)
-    
+
     # Extract row from middle of image
     row_index = img.shape[0] // 2
-    
+
     # Histogram window rendered with OpenCV
     cv2.namedWindow("Histograms")
-    
+
     # Create control window with trackbars
     cv2.namedWindow('Controls')
     cv2.createTrackbar('Kernel Size', 'Controls', 5, 51, update_image)
     cv2.createTrackbar('Sigma x10', 'Controls', 0, 100, update_image)
     cv2.createTrackbar('CLAHE x10', 'Controls', 20, 100, update_image)
-    
+
     print("\n=== Interactive Parameter Tuning ===")
     print("Adjust trackbars in 'Controls' window")
     print("Histograms update in real-time")
-    print("Press 's' to save CSV")
     print("Press 'q' to quit")
-    
+
     # Initial update
     update_image(0)
-    
+
     # Main loop
     while True:
         key = cv2.waitKey(100) & 0xFF
-        
-        if key == ord('s'):
-            save_csv()
-        elif key == ord('q'):
+
+        if key == ord("q"):
             break
-    
+
     cv2.destroyAllWindows()
     # Histogram window is managed by OpenCV
 

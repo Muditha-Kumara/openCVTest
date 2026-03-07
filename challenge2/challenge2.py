@@ -48,6 +48,49 @@ while True:
     cv2.line(display, (0, 100), (w - 1, 100), (255, 0, 255), 1)
     cv2.line(display, (0, 360), (w - 1, 360), (255, 0, 255), 1)
 
+    # Find intersection points for vertical lines
+    v1 = v2 = v3 = v4 = None
+    # x=185
+    if 0 <= 185 < w:
+        col = edges[:, 185]
+        # From top (v1)
+        for y in range(h):
+            if col[y] > 0:
+                v1 = (185, y)
+                break
+        # From bottom (v3)
+        for y in range(h - 1, -1, -1):
+            if col[y] > 0:
+                v3 = (185, y)
+                break
+    # x=480
+    if 0 <= 480 < w:
+        col = edges[:, 480]
+        # From top (v2)
+        for y in range(h):
+            if col[y] > 0:
+                v2 = (480, y)
+                break
+        # From bottom (v4)
+        for y in range(h - 1, -1, -1):
+            if col[y] > 0:
+                v4 = (480, y)
+                break
+
+    # Draw points if found
+    if v1:
+        cv2.circle(display, v1, 8, (0, 255, 255), -1)
+        cv2.putText(display, "v1", (v1[0] + 10, v1[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+    if v2:
+        cv2.circle(display, v2, 8, (0, 255, 255), -1)
+        cv2.putText(display, "v2", (v2[0] + 10, v2[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+    if v3:
+        cv2.circle(display, v3, 8, (0, 255, 255), -1)
+        cv2.putText(display, "v3", (v3[0] + 10, v3[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+    if v4:
+        cv2.circle(display, v4, 8, (0, 255, 255), -1)
+        cv2.putText(display, "v4", (v4[0] + 10, v4[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+
     # Find intersection points of horizontal lines with rightmost edge
     p1, p2 = None, None
     # y=100

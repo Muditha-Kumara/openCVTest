@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import csv
 
 # Callback for OpenCV trackbars (does nothing, just required)
 def nothing(x):
@@ -126,18 +127,37 @@ def intersection(l1pt1, l1pt2, l2pt1, l2pt2):
     y = int((A1 * C2 - A2 * C1) / det)
     return (x, y)
 
+
+# Save image data (grayscale or edge) to CSV with columns: no, x, y, value
+def save_to_csv(filename, data, image_type):
+    """Save image data to CSV with columns: no, x, y, value"""
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["no", "x", "y", "value"])
+        row_num = 0
+        h, w = data.shape
+        for y in range(h):
+            for x in range(w):
+                writer.writerow([row_num, x, y, int(data[y, x])])
+                row_num += 1
+
+
 # Main processing loop: handles UI, detection, visualization, and rectification
 def main():
     img = load_image("image.png")
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # Convert and save gray and edge data to CSV
+    save_to_csv("gray_data.csv", gray, "gray")
     cv2.namedWindow("Edge")
     cv2.createTrackbar("Min", "Edge", 68, 255, nothing)
     cv2.createTrackbar("Max", "Edge", 200, 255, nothing)
+
     while True:
         # Get trackbar values for Canny edge detection
         min_val = cv2.getTrackbarPos("Min", "Edge")
         max_val = cv2.getTrackbarPos("Max", "Edge")
         edges = cv2.Canny(gray, min_val, max_val)
+        # save_to_csv("edge_data.csv", edges, "edge")
         display = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
         # Overlay trackbar values for user feedback
         cv2.putText(
@@ -179,7 +199,7 @@ def main():
         # Draw intersection points (outer corners)
         for idx, pt in enumerate([p1, p2, p3, p4], 1):
             if pt and 0 <= pt[0] < w and 0 <= pt[1] < h:
-                cv2.circle(display, pt, 10, (0, 255, 255), -1)
+                cv2.circle(display, pt, 8, (0, 255, 255), -1)
                 cv2.putText(
                     display,
                     f"p{idx}",
